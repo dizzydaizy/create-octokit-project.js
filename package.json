@@ -23,7 +23,7 @@
     "camelcase": "^6.2.0",
     "clipboardy": "^2.3.0",
     "execa": "^5.0.0",
-    "inquirer": "^8.0.0",
+    "inquirer": "^8.2.0",
     "prettier": "2.4.1",
     "spdx-license-list": "^6.3.0"
   },
