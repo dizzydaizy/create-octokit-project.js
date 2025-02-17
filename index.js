@@ -1,33 +1,31 @@
-#!/usr/bin/env node
+import { inspect } from "node:util";
+import { mkdir } from "node:fs/promises";
 
-const { inspect } = require("util");
-const { mkdir } = require("fs").promises;
+import inquirer from "inquirer";
+import { Octokit } from "@octokit/core";
+import { createOAuthDeviceAuth } from "@octokit/auth-oauth-device";
+import clipboardy from "clipboardy";
 
-const inquirer = require("inquirer");
-const { Octokit } = require("@octokit/core");
-const { createOAuthDeviceAuth } = require("@octokit/auth-oauth-device");
-const clipboardy = require("clipboardy");
+import { command } from "./lib/command.js";
+import { createBranchProtection } from "./lib/create-branch-protection.js";
+import { createCoc } from "./lib/create-coc.js";
+import { createContributing } from "./lib/create-contributing.js";
+import { createEsbuildScript } from "./lib/create-esbuild-script.js";
+import { createIssueTemplates } from "./lib/create-issue-templates.js";
+import { createLicense } from "./lib/create-license.js";
+import { createPackageJson } from "./lib/create-package-json.js";
+import { createPullRequest } from "./lib/create-pull-request.js";
+import { createReadme } from "./lib/create-readme.js";
+import { createReleaseAction } from "./lib/create-release-action.js";
+import { createUpdatePrettierAction } from "./lib/create-update-prettier-action.js";
+import { createTestAction } from "./lib/create-test-action.js";
+import { createRenovateConfig } from "./lib/create-renovate-config.js";
+import { createRepository } from "./lib/create-repository.js";
+import { inviteCollaborators } from "./lib/invite-collaborators.js";
+import { prompts } from "./lib/prompts.js";
+import { writePrettyFile } from "./lib/write-pretty-file.js";
 
-const command = require("./lib/command");
-const createBranchProtection = require("./lib/create-branch-protection");
-const createCoc = require("./lib/create-coc");
-const createContributing = require("./lib/create-contributing");
-const createIssueTemplates = require("./lib/create-issue-templates");
-const createLicense = require("./lib/create-license");
-const createPackageJson = require("./lib/create-package-json");
-const createPullRequest = require("./lib/create-pull-request");
-const createReadme = require("./lib/create-readme");
-const createReleaseAction = require("./lib/create-release-action");
-const createUpdatePrettierAction = require("./lib/create-update-prettier-action");
-const createTestAction = require("./lib/create-test-action");
-const createRepository = require("./lib/create-repository");
-const inviteCollaborators = require("./lib/invite-collaborators");
-const prompts = require("./lib/prompts");
-const writePrettyFile = require("./lib/write-pretty-file");
-
-main();
-
-async function main() {
+export async function main() {
   const { repositoryType } = await inquirer.prompt([
     {
       name: "repositoryType",
@@ -139,7 +137,7 @@ async function main() {
 
     await command("git add CODE_OF_CONDUCT.md");
     await command(
-      "git commit -m 'docs(CODE_OF_CONDUCT): Contributor Covenant'"
+      "git commit -m 'docs(CODE_OF_CONDUCT): Contributor Covenant'",
     );
 
     await command("git add CONTRIBUTING.md");
@@ -162,7 +160,7 @@ async function main() {
     });
 
     await command(
-      `git remote add origin git@github.com:${answers.repository}.git`
+      `git remote add origin git@github.com:${answers.repository}.git`,
     );
     await command(`git push -u origin HEAD`);
     await command(`git checkout -b initial-version`);
@@ -187,8 +185,8 @@ async function main() {
     const dependencies = [];
     const devDependencies = [
       "@octokit/tsconfig",
-      "@pika/pack",
-      "@pika/plugin-ts-standard-pkg",
+      "esbuild",
+      "glob",
       "@types/jest",
       "@types/node",
       "jest",
@@ -199,12 +197,6 @@ async function main() {
       "typescript",
     ];
 
-    if (answers.supportsBrowsers) {
-      devDependencies.push("@pika/plugin-build-web");
-    }
-    if (answers.supportsNode) {
-      devDependencies.push("@pika/plugin-build-node");
-    }
     if (answers.isPlugin || answers.isAuthenticationStrategy) {
       devDependencies.push("@octokit/core");
     }
@@ -232,11 +224,11 @@ async function main() {
 
     await writePrettyFile(
       ".gitignore",
-      ["coverage/", "node_modules/", "pkg/"].join("\n")
+      ["coverage/", "node_modules/", "pkg/"].join("\n"),
     );
     await command(`git add .gitignore`);
     await command(
-      `git commit -m 'build(gitignore): coverage, node_modules, pkg'`
+      `git commit -m 'build(gitignore): coverage, node_modules, pkg'`,
     );
 
     writePrettyFile(
@@ -244,10 +236,18 @@ async function main() {
       JSON.stringify({
         extends: "@octokit/tsconfig",
         include: ["src/**/*"],
-      })
+        compilerOptions: {
+          declaration: true,
+          outDir: "pkg/dist-types",
+          emitDeclarationOnly: true,
+          sourceMap: true,
+        },
+      }),
     );
     await command(`git add tsconfig.json`);
-    await command(`git commit -m 'build(typescript): configuration for pika'`);
+    await command(
+      `git commit -m 'build(typescript): configuration for esbuild'`,
+    );
 
     console.log("create smoke test");
 
@@ -275,7 +275,7 @@ async function main() {
               }).not.toThrow();
             });
           });
-        `
+        `,
       );
     } else {
       await writePrettyFile(
@@ -292,7 +292,7 @@ async function main() {
               expect(${answers.exportName}.VERSION).toEqual("0.0.0-development");
             });
           });
-        `
+        `,
       );
     }
 
@@ -302,7 +302,7 @@ async function main() {
     console.log("create src");
     await writePrettyFile(
       "src/version.ts",
-      'export const VERSION = "0.0.0-development"'
+      'export const VERSION = "0.0.0-development"',
     );
 
     if (answers.isPlugin) {
@@ -320,7 +320,7 @@ async function main() {
            */
           export function ${answers.exportName}(octokit: Octokit, options: Options) {}
           ${answers.exportName}.VERSION = VERSION;
-        `
+        `,
       );
     } else if (answers.isAuthenticationStrategy) {
       await writePrettyFile(
@@ -345,7 +345,7 @@ async function main() {
             });
           };
           
-        `
+        `,
       );
       await writePrettyFile(
         "src/types.ts",
@@ -355,7 +355,7 @@ async function main() {
             AuthOptions: any;
             Authentication: any;
           }; 
-        `
+        `,
       );
       await writePrettyFile(
         "src/auth.ts",
@@ -365,7 +365,7 @@ async function main() {
           export async function auth(options: AuthOptions): Promise<Authentication> {
             // TODO: add implementation
           }        
-        `
+        `,
       );
       await writePrettyFile(
         "src/hook.ts",
@@ -392,7 +392,7 @@ async function main() {
             //       probably something like setting the authorization header
             return request(route, parameters);
           }
-        `
+        `,
       );
     } else {
       const isClass = /^[A-Z]/.test(answers.exportName);
@@ -406,7 +406,7 @@ async function main() {
             export class ${answers.exportName} {
               static VERSION = VERSION
             }
-          `
+          `,
         );
       } else {
         await writePrettyFile(
@@ -416,11 +416,12 @@ async function main() {
 
             export function ${answers.exportName}() {}
             ${answers.exportName}.VERSION = VERSION
-          `
+          `,
         );
       }
     }
 
+    await createEsbuildScript(answers);
     await command(`git add src`);
     await command(`git commit -m 'feat: initial version'`);
 
@@ -460,9 +461,16 @@ async function main() {
     await command(`git add .github/workflows/test.yml`);
     await command(`git commit -m 'ci(test): initial version'`);
 
-    await createUpdatePrettierAction();
+    await createUpdatePrettierAction({ owner });
     await command(`git add .github/workflows/update-prettier.yml`);
     await command(`git commit -m 'ci(update-prettier): initial version'`);
+
+    if (owner === "octokit") {
+      console.log("Create Renovate configuration");
+      await createRenovateConfig();
+      await command(`git add .github/renovate.json`);
+      await command(`git commit -m 'ci(renovate): add Renovate configuration'`);
+    }
 
     await command(`git push`);
 
